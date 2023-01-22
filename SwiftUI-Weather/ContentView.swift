@@ -7,98 +7,70 @@
 
 import SwiftUI
 
-enum WeatherImage: String {
-    case CloudySun = "cloud.sun.fill"
-    case Sunny = "sun.max.fill"
-    case Cloudy = "cloud.fill"
-    case Thunderstorm = "cloud.bolt.rain.fill"
-    case Snowy = "cloud.snow.fill"
-    case MoonHaze = "moon.haze.fill"
-}
 
-enum DayOfWeek: String {
-    case Monday    = "MON"
-    case Tuesday   = "TUE"
-    case Wednesday = "WED"
-    case Thursday  = "THU"
-    case Friday    = "FRI"
-    case Saturday  = "SAT"
-    case Sunday    = "SUN"
-}
 
 struct ContentView: View {
     
     @State private var isNight = false
+    @State private var isPressed = false
+    @EnvironmentObject var network: Network
     
     var body: some View {
         ZStack {
-            BackgroundView(isNight: $isNight)
+            BackgroundView(isNight: isNight)
             VStack() {
-                CityTextView(cityName: "Cupertino, CA")
+                CityTextView(cityName: "Tokyo, JP")
                     .padding()
-                MainWeatherStatusView(imageName: isNight ? WeatherImage.MoonHaze : WeatherImage.CloudySun,
-                                      temperature: 76)
+                MainWeatherStatusView(imageName: network.weatherIcon,
+                                      temperature: network.temperature,
+                                      weatherDescription: network.weatherDescription)
                     .padding(.bottom, 40)
                 
                 // Dayofweek HStack
                 HStack(spacing: 20) {
-                    WeatherDayView(dayOfWeek: DayOfWeek.Tuesday,
-                                   imageName: WeatherImage.CloudySun,
-                                   temperature: 76)
-                    WeatherDayView(dayOfWeek: DayOfWeek.Wednesday,
-                                   imageName: WeatherImage.Cloudy,
-                                   temperature: 68)
-                    WeatherDayView(dayOfWeek: DayOfWeek.Thursday,
-                                   imageName: WeatherImage.Snowy,
-                                   temperature: 28)
-                    WeatherDayView(dayOfWeek: DayOfWeek.Friday,
-                                   imageName: WeatherImage.Sunny,
-                                   temperature: 80)
-                    WeatherDayView(dayOfWeek: DayOfWeek.Saturday,
-                                   imageName: WeatherImage.Thunderstorm,
-                                   temperature: 70)
+                    ForEach(network.forecastData.dropFirst(), id: \.date_epoch) { item in
+                        WeatherDayView(dayOfWeek: ConvertEpochToWeekday(epochTime: item.date_epoch),
+                                       imageName: codeDictionary[item.day.condition.code] ?? "",
+                                       temperature: item.day.avgtemp_f)
+                    }
                 }
                 
                 Spacer()
                 
                 Button {
+                    debugPrint("Pressed!")
                     isNight.toggle()
                 } label: {
-                    WeatherButton(title: "Change Day Time",
-                                  textColor: .blue,
-                                  backgroundColor: .white)
+                    WeatherButton(title: "Night mode",
+                                  textColor: .white,
+                                  backgroundColor: .purple)
                 }
                 
                 Spacer()
             }
-            
+            .onAppear(perform: network.getCurrentWeatherData)
         }
     }
 }
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-    }
-}
 
 struct WeatherDayView: View {
-    let dayOfWeek: DayOfWeek
-    let imageName: WeatherImage
-    let temperature: Int
-    
+    let dayOfWeek: String
+    let imageName: String
+    let temperature: Double
     var body: some View {
         VStack {
             // Day of week
-            Text(dayOfWeek.rawValue)
+            Text(dayOfWeek)
                 .font(.system(size: 16, weight: .semibold, design: .monospaced))
                 .foregroundColor(.white)
-            Image(systemName: imageName.rawValue)
-                .renderingMode(.original)
+            Image(systemName: imageName)
+                .symbolRenderingMode(.multicolor)
                 .resizable()
+//                .foregroundStyle(.purple, .red)
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 50, height: 50)
-            Text("\(temperature)°")
+            Text("\(Int(temperature))°")
                 .font(.system(size: 28, weight: .semibold, design: .monospaced))
                 .foregroundColor(.white)
         }
@@ -106,15 +78,18 @@ struct WeatherDayView: View {
 }
 
 struct BackgroundView: View {
-    @Binding var isNight: Bool
+    var isNight: Bool
     
     var body: some View {
-        let topColor = isNight ? Color.black : Color.blue
-        let bottomColor = isNight ? Color.gray : Color("lightBlue")
-        LinearGradient(colors: [topColor, bottomColor],
-                       startPoint: .topLeading,
-                       endPoint: .bottomTrailing)
-        .edgesIgnoringSafeArea(.all)
+//        let topColor = isNight ? Color.black : Color.blue
+//        let bottomColor = isNight ? Color.gray : Color("lightBlue")
+//        LinearGradient(colors: [topColor, bottomColor],
+//                       startPoint: .topLeading,
+//                       endPoint: .bottomTrailing)
+//            .ignoresSafeArea()
+        ContainerRelativeShape()
+            .fill(isNight ? Color.black.gradient : Color.blue.gradient)
+            .ignoresSafeArea()
     }
 }
 
@@ -130,19 +105,30 @@ struct CityTextView: View {
 
 
 struct MainWeatherStatusView: View {
-    let imageName: WeatherImage
-    let temperature: Int
+    let imageName: String
+    let temperature: Double
+    let weatherDescription: String
     
     var body: some View {
         VStack(spacing: 10) {
-            Image(systemName: imageName.rawValue)
+            Image(systemName: imageName)
                 .renderingMode(.original)
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .frame(width: 180, height: 180)
-            Text("\(temperature)°")
+            Text("\(String(format: "%.1f", temperature))°")
                 .font(.system(size: 70, weight: .bold, design: .default))
                 .foregroundColor(.white)
+            Text("\(weatherDescription)")
+                .font(.system(size: 16, weight: .thin, design: .default))
+                .foregroundColor(.white)
         }
+    }
+}
+
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+            .environmentObject(Network())
     }
 }
